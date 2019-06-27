@@ -3,7 +3,7 @@
 该项目为多元状态估计技术的python实现，主要包含`训练与测试数据`（.mat文件）、`模型`（Model.py）以及`测试例子`（example.py）<br>
 其中`ae_D_temp`为训练数据，`ae_Kobs3_temp`为正常测试数据，`ae_ver_temp`为磨煤机堵煤故障数据，数据集包含风粉混合物温度等14个变量。`Model.py`包含以下函数：<br>
 * Traindata(name_list,if_nor=True)  
-	>#输入文件名列表，加载训练数据，默认对数据进行归一化<br>
+	><font size=1>#输入文件名列表，加载训练数据，默认对数据进行归一化</font><br>
 * Testdata(name_string,np_Dmax,np_Dmin,if_nor=True)  
 	>#加载测试数据，默认进行归一化<br>
 * Faultdata(name_string,np_Dmax,np_Dmin,if_nor=True)  
@@ -14,7 +14,8 @@
 	>#模型训练，返回记忆矩阵<br>
 * MemoryMats_train(np_D)  
 	>#多模型训练，分高中低负荷建立模型，返回三个记忆矩阵<br>
-* MemoryMats_train(np_D)               #计算保存记忆矩阵的Temp矩阵，在每次输入观测向量，计算估计值时，可直接加载Temp，减少运算量<br>
+* MemoryMats_train(np_D)  
+	>#计算保存记忆矩阵的Temp矩阵，在每次输入观测向量，计算估计值时，可直接加载Temp，减少运算量<br>
 * MSET(memorymat_name,Kobs,Temp_name)  
 	>#输入记忆矩阵、观测向量以及Temp矩阵，返回对应的估计向量<br>
 * MSETs(memorymat1_name,memorymat2_name,memorymat3_name,Kobs)  
