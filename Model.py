@@ -6,6 +6,7 @@ import matplotlib.ticker as ticker
 column_num=18
 step=100
 delta=0.001
+z=4
 
 #加载训练数据，默认进行归一化
 def Traindata(name_list,if_nor=True):
@@ -16,10 +17,7 @@ def Traindata(name_list,if_nor=True):
         np_D = np.vstack((np_D, temp))
     np_D = np.delete(np_D, 0, axis=0)
     np_D = np_D[:, 4:]#去掉不需要的前三列
-    index=[]
-    for i in range(np_D.shape[0]):#检测磨煤机电流是否存在低于0.5的向量
-        if np.abs(np_D[i,3])<0.5:
-            index.append(i)
+    index = np.where(np_D[:,3]< 10)[0]#将磨煤机电流低于10的值删去
     np_D=np.delete(np_D,index,axis=0)
     np_Dmax, np_Dmin = np_D.max(axis=0), np_D.min(axis=0)
     if if_nor:
@@ -63,7 +61,7 @@ def MemoryMat_train(np_D,memorymat_name):
         for k in range(step):
             for j in range(np_D.shape[0]):
                 if np.abs(np_D[j,i]-k*(1/step))<delta:
-                    memorymat = np.vstack((memorymat, np_D[j]))
+                    memorymat = np.vstack((memorymat, np_D[j]))#添加向量至记忆矩阵
                     break
     memorymat = np.delete(memorymat, 0, axis=0)
     print('memorymat:',memorymat.shape)
@@ -155,21 +153,40 @@ def MSETs(memorymat1_name,memorymat2_name,memorymat3_name,Kobs):
             Kest[t] = MSET(memorymat2_name,Kobs[t:t+1,:],'Temp_med.npy')
     return Kest
 
-#基于融合距离的相似度
+#基于融合距离的相似度计算
 def Cal_sim(Kobs,Kest):
-    dist_norm = []
+    dist_norm = np.zeros((Kobs.shape[0],1))
+    dist_cos = np.zeros((Kobs.shape[0], 1))
     for i in range(Kobs.shape[0]):
-        dist_norm.append(np.linalg.norm(Kobs[i, :] - Kest[i, :]))
-    dist_norm_arr = np.array(dist_norm, dtype=float)  # 欧式距离
-    dist_cos = []
-    for i in range(Kobs.shape[0]):
-        dist_cos.append(np.dot(Kobs[i, :], Kest[i, :]) /
-                        (np.linalg.norm(Kobs[i, :]) * np.linalg.norm(
-                            Kest[i, :])))  # dot向量内积，norm向量二范数
-    dist_cos_arr = (np.array(dist_cos, dtype=float) * 0.5 + 0.5)  # 余弦距离
-    sim = (1 / (1 + dist_norm_arr / dist_cos_arr))  # 相似度公式
-    threshold = np.min(sim) * 0.98  # 验证时注释
-    return sim,threshold
+        dist_norm[i]=np.linalg.norm(Kobs[i, :] - Kest[i, :]) # 欧式距离
+        dist_cos[i]= np.dot(Kobs[i, :], Kest[i, :]) /\
+                     (np.linalg.norm(Kobs[i, :]) * np.linalg.norm(Kest[i, :]))  # dot向量内积，norm向量二范数
+    dist_cos= dist_cos* 0.5 + 0.5  # 余弦距离平移至[0,1]
+    sim = (1 / (1 + dist_norm / dist_cos))  # 相似度公式
+    return sim
+
+# 根据区间统计的思想确定动态阈值
+def Cal_thres(sim):
+    mu = np.zeros((sim.shape[0], 1))
+    sigma = np.zeros((sim.shape[0], 1))
+    index=np.empty((1,),dtype=int)
+    for i in range(sim.shape[0]):
+        if i==0:
+            mu[i]=sim[i]
+        else:
+            # 相似度大于动态阈值且大于0.8，更新动态阈值
+            if sim[i-1] >= (mu[i-1] - z * sigma[i-1]) and sim[i-1]>=0.8:
+                mu[i]=1/(i+1)*sim[i]+i/(i+1)*sim[i-1]
+                sigma[i]=np.sqrt((i-1)/i*(sigma[i-1]**2)+((sim[i]-mu[i-1])**2/(i+1)))
+            # 相似度小于动态阈值或相似度大于动态阈值且小于0.8，不更新
+            elif sim[i-1]<(mu[i-1] - z * sigma[i-1])or \
+                    (sim[i-1] >= (mu[i-1] - z * sigma[i-1]) and sim[i-1]<0.8):
+                mu[i]=mu[i-1]
+                sigma[i]=sigma[i-1]
+                index=np.append(index,i)
+    index=np.delete(index,0)
+    thres=mu-z*sigma
+    return thres,index
 
 #各变量及其误差的可视化
 def pic_vars(label,Kobs,Kest,np_Dmax,np_Dmin):
@@ -200,8 +217,9 @@ def pic_vars(label,Kobs,Kest,np_Dmax,np_Dmin):
         plt.yticks(fontsize=18)
         plt.show()
     np.set_printoptions(formatter={'float': '{: 0.4f}'.format})
+
 #误差贡献率
-def error_contribution(Kobs,Kest,momtent):
+def error_contribution(Kobs,Kest,momtent,label):
     error=(Kobs - Kest)**2
     error_cont =[]
     for row in error:
@@ -209,11 +227,13 @@ def error_contribution(Kobs,Kest,momtent):
     plt.ion()
     plt.rcParams['font.sans-serif'] = ['SimHei']  # 图片显示中文
     plt.rcParams['axes.unicode_minus'] = False
-    plt.bar(list(range(Kobs.shape[1])), error_cont[momtent-1])
-    plt.title('在%d时刻下各变量的误差贡献率'%(momtent))
+    plt.bar(np.arange(1,Kobs.shape[1]+1,1), error_cont[momtent])
+    plt.xticks(range(1, Kobs.shape[1]+1, 1), label, rotation=80)
+    plt.title('1min内第%d时刻各变量的误差贡献率'%(momtent+1))
     plt.show()
+
 # 累计误差贡献率
-def Accumu_errorContirbution(Kobs,Kest,momtent,time_range):
+def Accumu_errorContirbution(Kobs,Kest,momtent,time_range,label):
     if time_range==0:
         print('Warning:time_range cannot be zero')
         return
@@ -221,13 +241,14 @@ def Accumu_errorContirbution(Kobs,Kest,momtent,time_range):
         error = (Kobs - Kest) ** 2
         error_cont = np.zeros((1,Kobs.shape[1]))
         for i in range(time_range):
-            error_cont += error[momtent-1+i]/error[momtent-1+i].sum()
+            error_cont += error[momtent+i]/error[momtent+i].sum()
         error_cont = np.squeeze(error_cont/time_range)
         plt.ion()
         plt.rcParams['font.sans-serif'] = ['SimHei']  # 图片显示中文
         plt.rcParams['axes.unicode_minus'] = False
-        plt.bar(list(range(Kobs.shape[1])) ,error_cont)
-        plt.title('从第%d个时刻起%d个点内的累计误差贡献率' % (momtent,time_range))
+        plt.bar(np.arange(1,Kobs.shape[1]+1,1) ,error_cont)
+        plt.xticks(range(1,Kobs.shape[1]+1,1),label,rotation=80)
+        plt.title('1min内第%d个时刻发出预警起的累计误差贡献率' % (momtent+1))
         plt.show()
 
 #更新记忆矩阵
