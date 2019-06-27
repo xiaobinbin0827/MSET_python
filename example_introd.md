@@ -31,3 +31,7 @@ example.py介绍
         Accumu_errorContirbution(Kobs[i*N:(i+1)*N], Kest[i*N:(i+1)*N],warning_index[0], N-warning_index[0],label2)
   ```
   ------
+* 输入磨煤机堵煤故障数据，部分结果如下：
+  >![figure 1](https://github.com/xiaobinbin0827/MSET_python/blob/master/img-folder/sim.png)
+  >![figure 2](https://github.com/xiaobinbin0827/MSET_python/blob/master/img-folder/error_contribution.png)
+  >![figure 3](https://github.com/xiaobinbin0827/MSET_python/blob/master/img-folder/Acc_errorContribution.png)
