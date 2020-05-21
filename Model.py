@@ -16,7 +16,7 @@ def Traindata(name_list,if_nor=True):
         temp = dict_obj['ae_D']
         np_D = np.vstack((np_D, temp))
     np_D = np.delete(np_D, 0, axis=0)
-    np_D = np_D[:, 4:]#去掉不需要的前三列
+    np_D = np_D[:, 4:]#去掉不需要的前四列
     index = np.where(np_D[:,3]< 10)[0]#将磨煤机电流低于10的值删去
     np_D=np.delete(np_D,index,axis=0)
     np_Dmax, np_Dmin = np_D.max(axis=0), np_D.min(axis=0)
